@@ -1,6 +1,5 @@
 import AppDataSource from "../../data-source";
 import { Categories } from "../../entities/categories";
-import { Properties } from "../../entities/properties";
 import { AppError } from "../../errorGlobal/AppError";
 
 export async function getPropertiesByCategoryIdService(id: string) {
@@ -9,13 +8,11 @@ export async function getPropertiesByCategoryIdService(id: string) {
     const validId = await categoriesRepo.findOneBy({ id });
     if (!validId) throw new AppError(404, "Category doesn't exists.");
 
-    const properties = await categoriesRepo
+    const property = await categoriesRepo
         .createQueryBuilder("categories")
-        .innerJoinAndSelect("categories.property", "property")
+        .leftJoinAndSelect("categories.properties", "properties")
         .where("categories.id = :categories_id", { categories_id: id })
-        .getMany();
+        .getOne();
 
-    console.log(properties);
-
-    return properties;
+    return property;
 }

@@ -37,9 +37,9 @@ export class Properties {
     @JoinColumn()
     address: Addresses;
 
-    @ManyToOne(() => Categories, (category) => category.property)
+    @ManyToOne(() => Categories, (category) => category.properties)
     category: Categories;
 
-    @OneToMany(() => Schedules, (schedule) => schedule.property)
+    @OneToMany(() => Schedules, (schedule) => schedule.properties)
     schedules: Schedules[];
 }

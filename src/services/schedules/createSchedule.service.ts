@@ -1,6 +1,7 @@
 import AppDataSource from "../../data-source";
 import { Properties } from "../../entities/properties";
 import { Schedules } from "../../entities/schedules_user_properties";
+import { User } from "../../entities/users";
 import { AppError } from "../../errorGlobal/AppError";
 import { IScheduleRequest } from "../../interfaces/schedules";
 
@@ -25,21 +26,58 @@ export async function createScheduleService(
 
     const schedulesRepo = AppDataSource.getRepository(Schedules);
     const propertiesRepo = AppDataSource.getRepository(Properties);
+    const userRepo = AppDataSource.getRepository(User);
 
-    const validId = await propertiesRepo.findOneBy({ id: propertyId });
-    if (!validId) throw new AppError(404, "Property not found");
+    const propertyExists = await propertiesRepo.findOneBy({ id: propertyId });
+    if (!propertyExists) throw new AppError(404, "Property not found");
 
-    const checkIfPropertyIsAvailable = await schedulesRepo
-        .createQueryBuilder("schedules_user_properties")
-        .innerJoinAndSelect("schedules_user_properties.property", "property")
-        .innerJoinAndSelect("schedules_user_properties.user", "user")
-        .where("schedules_user_properties.userId = :user_id", {
-            user_id: userId,
+    const userExists = await userRepo.findOneBy({ id: userId });
+    if (!userExists) throw new AppError(404, "User not found");
+
+    const checkPropertyAvailability = await propertiesRepo
+        .createQueryBuilder("properties")
+        .innerJoinAndSelect(
+            "properties.schedules",
+            "schedule",
+            "schedule.date = :date",
+            {
+                date,
+            }
+        )
+        .where("properties.id = :properties_id", { properties_id: propertyId })
+        .andWhere("schedule.hour = :hour", {
+            hour,
         })
-        .getMany();
+        .getOne();
 
-    const newSchedule = schedulesRepo.create({ date, hour });
+    if (checkPropertyAvailability)
+        throw new AppError(409, "Property schedule already exists");
 
-    await schedulesRepo.save({ ...newSchedule, userId, propertyId });
+    const checkUserAvailability = await userRepo
+        .createQueryBuilder("user")
+        .innerJoinAndSelect(
+            "user.schedules",
+            "schedule",
+            "schedule.date = :date",
+            {
+                date,
+            }
+        )
+        .where("user.id = :user_id", { user_id: userId })
+        .andWhere("schedule.hour = :hour", {
+            hour,
+        })
+        .getOne();
+
+    if (checkUserAvailability)
+        throw new AppError(409, "User schedule already exists");
+
+    await schedulesRepo.save({
+        date,
+        hour,
+        properties: propertyExists,
+        user: userExists,
+    });
+
     return { message: "Schedule created" };
 }
