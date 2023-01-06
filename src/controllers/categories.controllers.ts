@@ -1,7 +1,9 @@
 import { Request, Response } from "express";
-import { createCategoryService } from "../services/categories/createCategory.service";
-import { getAllCategoriesService } from "../services/categories/getAllCategories.service";
-import { getPropertiesByCategoryIdService } from "../services/categories/getPropertiesByCategoryId.service";
+import {
+    createCategoryService,
+    getAllCategoriesService,
+    getPropertiesByCategoryIdService,
+} from "../services/imports";
 
 async function createCategoryController(request: Request, response: Response) {
     const data = await createCategoryService(request.body);

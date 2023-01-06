@@ -1,9 +1,9 @@
 import { Router } from "express";
 import {
+    createCategoryController,
     getAllCategoriesController,
     getPropertiesByCategoryIdController,
-} from "../controllers/categories.controllers";
-import { createCategoryController } from "../controllers/imports";
+} from "../controllers/imports";
 import {
     ensureAuthMiddleware,
     validSerializerMiddleware,

@@ -2,7 +2,7 @@ import { Router } from "express";
 import {
     createPropertyController,
     getAllPropertiesController,
-} from "../controllers/properties.controllers";
+} from "../controllers/imports";
 import {
     ensureAuthMiddleware,
     validSerializerMiddleware,

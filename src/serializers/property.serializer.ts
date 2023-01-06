@@ -14,7 +14,7 @@ const createPropertySerializer: SchemaOf<IPropertyRequest> = yup
             city: yup.string().required(),
             state: yup.string().length(2).required(),
         }),
-        categoryId: yup.string().required(),
+        categoryId: yup.string().uuid().required(),
         sold: yup.boolean(),
     });
 

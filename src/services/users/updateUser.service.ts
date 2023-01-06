@@ -13,9 +13,7 @@ export async function updateUserService(
     const userRepo = AppDataSource.getRepository(User);
     const checkEmail = await userRepo.findOneBy({ email });
 
-    if (checkEmail) {
-        throw new AppError(401, "Can't update to this email.");
-    }
+    if (checkEmail) throw new AppError(401, "Can't update to this email.");
 
     const user = await userRepo.findOneBy({ id });
 

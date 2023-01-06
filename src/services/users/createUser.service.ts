@@ -12,9 +12,7 @@ export async function createUserService(
         email: payload.email,
     });
 
-    if (data) {
-        throw new AppError(409, "User already exist's in our database.");
-    }
+    if (data) throw new AppError(409, "User already exist's in our database.");
 
     const newUser = userRepo.create(payload);
     await userRepo.save(newUser);

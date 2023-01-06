@@ -1,6 +1,9 @@
 import { Request, Response } from "express";
-import { createScheduleService } from "../services/schedules/createSchedule.service";
-import { getSchedulesByPropertyIdService } from "../services/schedules/getSchedulesByPropertyId.service";
+import {
+    createScheduleService,
+    getSchedulesByPropertyIdService,
+} from "../services/imports";
+
 async function createScheduleController(request: Request, response: Response) {
     const data = await createScheduleService(request.body, request.id);
 

@@ -1,6 +1,8 @@
 import { Request, Response } from "express";
-import { createPropertyService } from "../services/properties/createProperty.service";
-import { getAllPropertiesService } from "../services/properties/getAllProperties.service";
+import {
+    createPropertyService,
+    getAllPropertiesService,
+} from "../services/imports";
 
 async function createPropertyController(request: Request, response: Response) {
     const data = await createPropertyService(request.body);

@@ -1,13 +1,16 @@
 import AppDataSource from "../../data-source";
 import { Properties } from "../../entities/properties";
 import { AppError } from "../../errorGlobal/AppError";
+import { IPropertyResponse } from "../../interfaces/properties";
 
-export async function getSchedulesByPropertyIdService(id: string) {
+export async function getSchedulesByPropertyIdService(
+    id: string
+): Promise<IPropertyResponse> {
     const propertiesRepo = AppDataSource.getRepository(Properties);
     const propertyExists = await propertiesRepo.findOneBy({ id });
     if (!propertyExists) throw new AppError(404, "Property not found.");
 
-    const schedules = await propertiesRepo
+    const schedulesInProperty = await propertiesRepo
         .createQueryBuilder("properties")
         .innerJoinAndSelect("properties.schedules", "schedules")
         .innerJoinAndSelect("schedules.user", "user")
@@ -15,5 +18,5 @@ export async function getSchedulesByPropertyIdService(id: string) {
         .where("properties.id = :properties_id", { properties_id: id })
         .getOne();
 
-    return schedules;
+    return schedulesInProperty;
 }

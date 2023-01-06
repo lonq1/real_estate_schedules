@@ -1,14 +1,12 @@
 import AppDataSource from "../../data-source";
-import { Properties } from "../../entities/properties";
-import { Schedules } from "../../entities/schedules_user_properties";
-import { User } from "../../entities/users";
+import { Properties, Schedules, User } from "../../entities/imports";
 import { AppError } from "../../errorGlobal/AppError";
 import { IScheduleRequest } from "../../interfaces/schedules";
 
 export async function createScheduleService(
     payload: IScheduleRequest,
     userId: string
-) {
+): Promise<object> {
     const { propertyId, date, hour } = payload;
     const convertingDate = date.split("/");
     const inputDate = new Date(
@@ -18,21 +16,24 @@ export async function createScheduleService(
     ).getDay();
 
     if (inputDate === 0 || inputDate === 6)
-        throw new AppError(400, "Invalid date.");
+        throw new AppError(
+            400,
+            "You may only schedule a visit in business days."
+        );
 
     const formatedHour = +hour.replace(":", "") / 100;
     if (formatedHour < 8 || formatedHour > 18)
-        throw new AppError(400, "Invalid hour");
+        throw new AppError(
+            400,
+            "You may only schedule a visit in business hours."
+        );
 
-    const schedulesRepo = AppDataSource.getRepository(Schedules);
     const propertiesRepo = AppDataSource.getRepository(Properties);
-    const userRepo = AppDataSource.getRepository(User);
-
     const propertyExists = await propertiesRepo.findOneBy({ id: propertyId });
     if (!propertyExists) throw new AppError(404, "Property not found");
 
+    const userRepo = AppDataSource.getRepository(User);
     const userExists = await userRepo.findOneBy({ id: userId });
-    if (!userExists) throw new AppError(404, "User not found");
 
     const checkPropertyAvailability = await propertiesRepo
         .createQueryBuilder("properties")
@@ -71,6 +72,8 @@ export async function createScheduleService(
 
     if (checkUserAvailability)
         throw new AppError(409, "User schedule already exists");
+
+    const schedulesRepo = AppDataSource.getRepository(Schedules);
 
     await schedulesRepo.save({
         date,

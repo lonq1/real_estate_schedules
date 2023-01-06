@@ -2,13 +2,25 @@ import { Router } from "express";
 import {
     createScheduleController,
     getSchedulesByPropertyIdController,
-} from "../controllers/schedules.controllers";
-import { ensureAuthMiddleware } from "../middlewares/ensureAuth.middleware";
-import { verifyIfAdminMiddleware } from "../middlewares/verifyIfAdmin.middleware";
+} from "../controllers/imports";
+import {
+    ensureAuthMiddleware,
+    validSerializerMiddleware,
+    verifyIfAdminMiddleware,
+    verifyIfUserExistsMiddleware,
+} from "../middlewares/imports";
+import { createScheduleSerializer } from "../serializers/schedules.serializer";
 
 export const schedulesRoutes = Router();
 
-schedulesRoutes.post("", ensureAuthMiddleware, createScheduleController);
+schedulesRoutes.post(
+    "",
+    ensureAuthMiddleware,
+    validSerializerMiddleware(createScheduleSerializer),
+    verifyIfUserExistsMiddleware,
+
+    createScheduleController
+);
 schedulesRoutes.get(
     "/properties/:id",
     ensureAuthMiddleware,

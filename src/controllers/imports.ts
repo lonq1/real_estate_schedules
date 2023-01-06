@@ -1,4 +1,8 @@
-import { createCategoryController } from "./categories.controllers";
+import {
+    createCategoryController,
+    getAllCategoriesController,
+    getPropertiesByCategoryIdController,
+} from "./categories.controllers";
 import { loginController } from "./login.controllers";
 import {
     createUserController,
@@ -6,6 +10,15 @@ import {
     deleteUserController,
     updateUserController,
 } from "./users.controllers";
+import {
+    createPropertyController,
+    getAllPropertiesController,
+} from "./properties.controllers";
+import {
+    createScheduleController,
+    getSchedulesByPropertyIdController,
+} from "./schedules.controllers";
+
 export {
     loginController,
     createCategoryController,
@@ -13,4 +26,10 @@ export {
     getAllUsersController,
     deleteUserController,
     updateUserController,
+    createPropertyController,
+    createScheduleController,
+    getAllCategoriesController,
+    getAllPropertiesController,
+    getPropertiesByCategoryIdController,
+    getSchedulesByPropertyIdController,
 };
