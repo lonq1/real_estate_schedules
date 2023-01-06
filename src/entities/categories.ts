@@ -1,0 +1,14 @@
+import { Column, Entity, PrimaryGeneratedColumn, OneToMany } from "typeorm";
+import { Properties } from "./properties";
+
+@Entity("categories")
+export class Categories {
+    @PrimaryGeneratedColumn("uuid")
+    id: string;
+
+    @Column({ unique: true })
+    name: string;
+
+    @OneToMany(() => Properties, (property) => property.category)
+    property: Properties[];
+}
