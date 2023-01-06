@@ -8,25 +8,6 @@ export async function createScheduleService(
     userId: string
 ): Promise<object> {
     const { propertyId, date, hour } = payload;
-    const convertingDate = date.split("/");
-    const inputDate = new Date(
-        +convertingDate[0],
-        +convertingDate[1] - 1,
-        +convertingDate[2]
-    ).getDay();
-
-    if (inputDate === 0 || inputDate === 6)
-        throw new AppError(
-            400,
-            "You may only schedule a visit in business days."
-        );
-
-    const formatedHour = +hour.replace(":", "") / 100;
-    if (formatedHour < 8 || formatedHour > 18)
-        throw new AppError(
-            400,
-            "You may only schedule a visit in business hours."
-        );
 
     const propertiesRepo = AppDataSource.getRepository(Properties);
     const propertyExists = await propertiesRepo.findOneBy({ id: propertyId });

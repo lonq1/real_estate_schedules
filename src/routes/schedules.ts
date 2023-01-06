@@ -4,6 +4,7 @@ import {
     getSchedulesByPropertyIdController,
 } from "../controllers/imports";
 import {
+    checkIfDateAndHourIsValidMiddleware,
     ensureAuthMiddleware,
     validSerializerMiddleware,
     verifyIfAdminMiddleware,
@@ -16,9 +17,9 @@ export const schedulesRoutes = Router();
 schedulesRoutes.post(
     "",
     ensureAuthMiddleware,
-    validSerializerMiddleware(createScheduleSerializer),
     verifyIfUserExistsMiddleware,
-
+    checkIfDateAndHourIsValidMiddleware,
+    validSerializerMiddleware(createScheduleSerializer),
     createScheduleController
 );
 schedulesRoutes.get(
