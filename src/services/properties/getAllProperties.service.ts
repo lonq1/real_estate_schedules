@@ -7,6 +7,7 @@ export async function getAllPropertiesService(): Promise<IPropertyResponse[]> {
     return await propertyRepo.find({
         relations: {
             address: true,
+            category: true,
         },
     });
 }
