@@ -1,56 +1,64 @@
 import { DataSource } from "typeorm";
 import AppDataSource from "../../../data-source";
-import request from "supertest"
+import request from "supertest";
 import app from "../../../app";
-import { mockedAdmin, mockedAdminLogin} from "../../mocks"
-
+import {
+    mockedAdmin,
+    mockedAdminLogin,
+    mockedUser,
+    mockedUserLogin,
+} from "../../mocks";
+import { User } from "../../../entities/users";
 
 describe("/login", () => {
-    let connection: DataSource
+    let connection: DataSource;
+    const usersRepository = AppDataSource.getRepository(User);
 
-    beforeAll(async() => {
-        await AppDataSource.initialize().then((res) => {
-            connection = res
-        }).catch((err) => {
-            console.error("Error during Data Source initialization", err)
-        })
+    beforeAll(async () => {
+        await AppDataSource.initialize()
+            .then((res) => {
+                connection = res;
+            })
+            .catch((err) => {
+                console.error("Error during Data Source initialization", err);
+            });
 
-        await request(app).post('/users').send(mockedAdmin)
-    })
+        const admin = usersRepository.create(mockedAdmin);
+        await usersRepository.save(admin);
+    });
 
-    afterAll(async() => {
-        await connection.destroy()
-    })
+    afterAll(async () => {
+        await connection.destroy();
+    });
 
-    test("POST /login -  should be able to login with the user",async () => {
-        const response = await request(app).post("/login").send(mockedAdminLogin);
-        
-        expect(response.body).toHaveProperty("token")
-        expect(response.status).toBe(200)
-     
-    })
+    it("POST /login - Should be able to login with the user", async () => {
+        const response = await request(app)
+            .post("/login")
+            .send(mockedAdminLogin);
 
-    test("POST /login -  should not be able to login with the user with incorrect password or email",async () => {
+        expect(response.body).toHaveProperty("token");
+        expect(response.status).toBe(200);
+    });
+
+    it("POST /login - Should NOT be able to login with the user with incorrect password or email", async () => {
         const response = await request(app).post("/login").send({
             email: "felipe@mail.com",
-            password: "1234567"
+            password: "1234567",
         });
 
-        expect(response.body).toHaveProperty("message")
-        expect(response.status).toBe(403)
-             
-    })
+        expect(response.body).toHaveProperty("message");
+        expect(response.status).toBe(403);
+    });
 
-    test("POST /login -  should not be able to login with the user with isActive = false",async () => {
-        const adminLoginResponse = await request(app).post("/login").send(mockedAdminLogin);
-        const findUser= await request(app).get('/users').set("Authorization", `Bearer ${adminLoginResponse.body.token}`)
-        await request(app).delete(`/users/${findUser.body[0].id}`).set("Authorization", `Bearer ${adminLoginResponse.body.token}`)
-        const response = await request(app).post("/login").send(mockedAdminLogin);
-        expect(response.body).toHaveProperty("message")
-        expect(response.status).toBe(400)
-             
-    })
+    it("POST /login - Should NOT be able to login with the user with isActive = false", async () => {
+        const user = usersRepository.create({ ...mockedUser, isActive: false });
+        await usersRepository.save(user);
 
-   
+        const response = await request(app)
+            .post("/login")
+            .send(mockedUserLogin);
 
-})
+        expect(response.body).toHaveProperty("message");
+        expect(response.status).toBe(400);
+    });
+});
