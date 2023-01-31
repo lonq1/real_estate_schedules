@@ -1,177 +1,518 @@
 import { DataSource } from "typeorm";
 import AppDataSource from "../../../data-source";
-import request from "supertest"
+import request from "supertest";
 import app from "../../../app";
-import {mockedUser, mockedAdmin, mockedAdminLogin, mockedCategory, mockedProperty, mockedUserLogin, mockedSchedule, mockedScheduleInvalidPropertyId, mockedScheduleInvalidDate, mockedScheduleInvalidHourLess8, mockedScheduleInvalidHourMore18, mockedProperty2} from "../../mocks"
-
+import {
+    mockedUser,
+    mockedAdmin,
+    mockedAdminLogin,
+    mockedUserLogin,
+    mockedSchedule,
+    mockedScheduleInvalidPropertyId,
+    mockedScheduleInvalidDate,
+    mockedScheduleInvalidHourLess8,
+    mockedScheduleInvalidHourMore18,
+    mockedProperty2,
+    mockedProperty,
+    mockedCategory,
+    mockedInvalidId,
+} from "../../mocks";
+import { User } from "../../../entities/users";
+import { Properties } from "../../../entities/properties";
+import { Categories } from "../../../entities/categories";
+import { Addresses } from "../../../entities/addresses";
+import { Schedules } from "../../../entities/schedules_user_properties";
 
 describe("/schedules", () => {
-    let connection: DataSource
+    let connection: DataSource;
+    const usersRepository = AppDataSource.getRepository(User);
+    const addressesRepository = AppDataSource.getRepository(Addresses);
+    const propertiesRepository = AppDataSource.getRepository(Properties);
+    const categoriesRepository = AppDataSource.getRepository(Categories);
+    const schedulesRepository = AppDataSource.getRepository(Schedules);
 
-    beforeAll(async() => {
-        await AppDataSource.initialize().then((res) => {
-            connection = res
-        }).catch((err) => {
-            console.error("Error during Data Source initialization", err)
-        })
+    beforeAll(async () => {
+        await AppDataSource.initialize()
+            .then((res) => {
+                connection = res;
+            })
+            .catch((err) => {
+                console.error("Error during Data Source initialization", err);
+            });
+    });
 
-        await request(app).post('/users').send(mockedUser)
-        await request(app).post('/users').send(mockedAdmin)
-        const adminLoginResponse = await request(app).post("/login").send(mockedAdminLogin);
-        const categories = await request(app).post('/categories').set("Authorization", `Bearer ${adminLoginResponse.body.token}`).send(mockedCategory)
-        mockedProperty.categoryId = categories.body.id
-        mockedProperty2.categoryId = categories.body.id
-        await request(app).post('/properties').set("Authorization", `Bearer ${adminLoginResponse.body.token}`).send(mockedProperty)
-        await request(app).post('/properties').set("Authorization", `Bearer ${adminLoginResponse.body.token}`).send(mockedProperty2)
-    })
+    beforeEach(async () => {
+        await schedulesRepository.clear();
+        await propertiesRepository.clear();
+        await usersRepository.clear();
+        await addressesRepository.clear();
+        await categoriesRepository.clear();
+    });
 
-    afterAll(async() => {
-        await connection.destroy()
-    })
+    afterAll(async () => {
+        await connection.destroy();
+    });
 
-    test("POST /schedules -  should be able to create a schedule",async () => {
-        const adminLoginResponse = await request(app).post("/login").send(mockedAdminLogin);
-        const users = await request(app).get('/users').set("Authorization", `Bearer ${adminLoginResponse.body.token}`)
-        const properties = await request(app).get('/properties')
-        const userLoginResponse = await request(app).post("/login").send(mockedUserLogin);
-        mockedSchedule.propertyId = properties.body[0].id
-        mockedSchedule.userId = users.body[1].id
-        const response = await request(app).post('/schedules').set("Authorization", `Bearer ${userLoginResponse.body.token}`).send(mockedSchedule)
+    it("POST /schedules - Should be able to create a schedule", async () => {
+        const user = usersRepository.create(mockedUser);
+        await usersRepository.save(user);
 
-        expect(response.body).toHaveProperty("message")
-        expect(response.status).toBe(201)
-    })
+        const userLoginResponse = await request(app)
+            .post("/login")
+            .send(mockedUserLogin);
+        const userToken = `Bearer ${userLoginResponse.body.token}`;
 
-    test("POST /schedules -  must not be able to create a schedule that already exists on a property",async () => {
-        const adminLoginResponse = await request(app).post("/login").send(mockedAdminLogin);
-        const users = await request(app).get('/users').set("Authorization", `Bearer ${adminLoginResponse.body.token}`)
-        const properties = await request(app).get('/properties')
-        const userLoginResponse = await request(app).post("/login").send(mockedUserLogin);
-        mockedSchedule.propertyId = properties.body[1].id
-        mockedSchedule.userId = users.body[1].id
-        mockedSchedule.hour = "11:30"
-        await request(app).post('/schedules').set("Authorization", `Bearer ${userLoginResponse.body.token}`).send(mockedSchedule)
-        mockedSchedule.userId = users.body[0].id
-        const response = await request(app).post('/schedules').set("Authorization", `Bearer ${userLoginResponse.body.token}`).send(mockedSchedule)
+        const category = categoriesRepository.create(mockedCategory);
+        await categoriesRepository.save(category);
 
-        expect(response.body).toHaveProperty("message")
-        expect(response.status).toBe(409)
-    })
+        const address = addressesRepository.create({
+            ...mockedProperty.address,
+        });
+        await addressesRepository.save(address);
 
-    test("POST /schedules -  the user must not be able to make 2 schedules in different properties with the same date and time",async () => {
-        const adminLoginResponse = await request(app).post("/login").send(mockedAdminLogin);
-        const users = await request(app).get('/users').set("Authorization", `Bearer ${adminLoginResponse.body.token}`)
-        const properties = await request(app).get('/properties')
-        const userLoginResponse = await request(app).post("/login").send(mockedUserLogin);
-        mockedSchedule.propertyId = properties.body[1].id
-        mockedSchedule.userId = users.body[1].id
-        mockedSchedule.hour = "10:30"
-        const response = await request(app).post('/schedules').set("Authorization", `Bearer ${userLoginResponse.body.token}`).send(mockedSchedule)
+        const property = propertiesRepository.create({
+            ...mockedProperty,
+            address,
+            category,
+        });
+        await propertiesRepository.save(property);
 
-        expect(response.body).toHaveProperty("message")
-        expect(response.status).toBe(409)
-    })
+        const response = await request(app)
+            .post("/schedules")
+            .set("Authorization", userToken)
+            .send({
+                ...mockedSchedule,
+                userId: user.id,
+                propertyId: property.id,
+            });
 
-    test("POST /schedules -  should not be able to create a schedule with an invalid date",async () => {
-        const adminLoginResponse = await request(app).post("/login").send(mockedAdminLogin);
-        const users = await request(app).get('/users').set("Authorization", `Bearer ${adminLoginResponse.body.token}`)
-        const properties = await request(app).get('/properties')
-        const userLoginResponse = await request(app).post("/login").send(mockedUserLogin);
-        mockedScheduleInvalidDate.propertyId = properties.body[0].id
-        mockedScheduleInvalidDate.userId = users.body[1].id
-        const response = await request(app).post('/schedules').set("Authorization", `Bearer ${userLoginResponse.body.token}`).send(mockedScheduleInvalidDate)
+        const scheduleInDatabase = await schedulesRepository.find();
 
-        expect(response.body).toHaveProperty("message")
-        expect(response.status).toBe(400)
-    })
+        expect(response.body).toHaveProperty("message");
+        expect(scheduleInDatabase.length).toBe(1);
+        expect(response.status).toBe(201);
+    });
 
-    test("POST /schedules -  should not be able to create a schedule with an invalid hour < 8",async () => {
-        const adminLoginResponse = await request(app).post("/login").send(mockedAdminLogin);
-        const users = await request(app).get('/users').set("Authorization", `Bearer ${adminLoginResponse.body.token}`)
-        const properties = await request(app).get('/properties')
-        const userLoginResponse = await request(app).post("/login").send(mockedUserLogin);
-        mockedScheduleInvalidHourLess8.propertyId = properties.body[0].id
-        mockedScheduleInvalidHourLess8.userId = users.body[1].id
-        const response = await request(app).post('/schedules').set("Authorization", `Bearer ${userLoginResponse.body.token}`).send(mockedScheduleInvalidHourLess8)
+    it("POST /schedules - Should NOT be able to create a schedule that already exists on a property", async () => {
+        const user = usersRepository.create(mockedUser);
+        await usersRepository.save(user);
 
-        expect(response.body).toHaveProperty("message")
-        expect(response.status).toBe(400)
-    })
+        const userLoginResponse = await request(app)
+            .post("/login")
+            .send(mockedUserLogin);
+        const userToken = `Bearer ${userLoginResponse.body.token}`;
 
-    test("POST /schedules -  should not be able to create a schedule with an invalid hour > 18",async () => {
-        const adminLoginResponse = await request(app).post("/login").send(mockedAdminLogin);
-        const users = await request(app).get('/users').set("Authorization", `Bearer ${adminLoginResponse.body.token}`)
-        const properties = await request(app).get('/properties')
-        const userLoginResponse = await request(app).post("/login").send(mockedUserLogin);
-        mockedScheduleInvalidHourMore18.propertyId = properties.body[0].id
-        mockedScheduleInvalidHourMore18.userId = users.body[1].id
-        const response = await request(app).post('/schedules').set("Authorization", `Bearer ${userLoginResponse.body.token}`).send(mockedScheduleInvalidHourMore18)
+        const category = categoriesRepository.create(mockedCategory);
+        await categoriesRepository.save(category);
 
-        expect(response.body).toHaveProperty("message")
-        expect(response.status).toBe(400)
-    })
+        const address = addressesRepository.create({
+            ...mockedProperty.address,
+        });
+        await addressesRepository.save(address);
 
-    test("POST /schedules -  should not be able to create a schedule with an invalid property id",async () => {
-        const adminLoginResponse = await request(app).post("/login").send(mockedAdminLogin);
-        const users = await request(app).get('/users').set("Authorization", `Bearer ${adminLoginResponse.body.token}`)
-        const userLoginResponse = await request(app).post("/login").send(mockedUserLogin);
-        mockedScheduleInvalidPropertyId.userId = users.body[1].id
-        const response = await request(app).post('/schedules').set("Authorization", `Bearer ${userLoginResponse.body.token}`).send(mockedScheduleInvalidPropertyId)
+        const property = propertiesRepository.create({
+            ...mockedProperty,
+            address,
+            category,
+        });
+        await propertiesRepository.save(property);
 
-        expect(response.body).toHaveProperty("message")
-        expect(response.status).toBe(404)
-    })
+        const schedule = schedulesRepository.create({
+            ...mockedSchedule,
+            user,
+            properties: property,
+        });
+        await schedulesRepository.save(schedule);
 
+        const response = await request(app)
+            .post("/schedules")
+            .set("Authorization", userToken)
+            .send({
+                ...mockedSchedule,
+                userId: user.id,
+                propertyId: property.id,
+            });
 
-    test("POST /schedules -  should not be able to create a schedule without authentication",async () => {
-        const adminLoginResponse = await request(app).post("/login").send(mockedAdminLogin);
-        const users = await request(app).get('/users').set("Authorization", `Bearer ${adminLoginResponse.body.token}`)
-        const properties = await request(app).get('/properties')
-        mockedSchedule.propertyId = properties.body[0].id
-        mockedSchedule.userId = users.body[1].id
-        const response = await request(app).post('/schedules').send(mockedSchedule)
+        const scheduleInDatabase = await schedulesRepository.find();
 
-        expect(response.body).toHaveProperty("message")
-        expect(response.status).toBe(401)
-    })
+        expect(response.body).toHaveProperty("message");
+        expect(scheduleInDatabase.length).toBe(1);
+        expect(response.status).toBe(409);
+    });
 
-    test("GET /schedules/properties/:id -  must be able to list the schedules of a property",async () => {
-        const adminLoginResponse = await request(app).post("/login").send(mockedAdminLogin);
-        const properties = await request(app).get('/properties')
-        const response = await request(app).get(`/schedules/properties/${properties.body[0].id}`).set("Authorization", `Bearer ${adminLoginResponse.body.token}`)
+    it("POST /schedules - Should NOT be able to make 2 schedules in different properties with the same date and time", async () => {
+        const user = usersRepository.create(mockedUser);
+        await usersRepository.save(user);
 
-        expect(response.body).toHaveProperty("schedules")
-        expect(response.body.schedules[0]).toHaveProperty("id")
-        expect(response.body.schedules[0]).toHaveProperty("date")
-        expect(response.body.schedules[0]).toHaveProperty("hour")
-        expect(response.body.schedules[0]).toHaveProperty("user")
-        expect(response.body.schedules).toHaveLength(1)
-        expect(response.status).toBe(200)
-    })
+        const userLoginResponse = await request(app)
+            .post("/login")
+            .send(mockedUserLogin);
+        const userToken = `Bearer ${userLoginResponse.body.token}`;
 
-    test("GET /schedules/properties/:id -  should not be able to list the schedules of a property with invalid id",async () => {
-        const adminLoginResponse = await request(app).post("/login").send(mockedAdminLogin);
-        const response = await request(app).get(`/schedules/properties/b855d86b-d4c9-41cd-ab98-d7fa734c6ce4`).set("Authorization", `Bearer ${adminLoginResponse.body.token}`)
+        const category = categoriesRepository.create(mockedCategory);
+        await categoriesRepository.save(category);
 
-        expect(response.body).toHaveProperty("message")
-        expect(response.status).toBe(404)
-    })
+        const address = addressesRepository.create({
+            ...mockedProperty.address,
+        });
+        await addressesRepository.save(address);
 
-    test("GET /schedules/properties/:id -  should not be able to list the schedules of a property without authentication",async () => {
-        const properties = await request(app).get('/properties')
-        const response = await request(app).get(`/schedules/properties/${properties.body[0].id}`)
+        const property = propertiesRepository.create({
+            ...mockedProperty,
+            address,
+            category,
+        });
+        await propertiesRepository.save(property);
 
-        expect(response.body).toHaveProperty("message")
-        expect(response.status).toBe(401)
-    })
+        const anotherAddress = addressesRepository.create({
+            ...mockedProperty2.address,
+        });
+        await addressesRepository.save(anotherAddress);
 
-    test("GET /schedules/properties/:id -  should not be able to list the schedules of a property that the user is not admin",async () => {
-        const userLoginResponse = await request(app).post("/login").send(mockedUserLogin);
-        const properties = await request(app).get('/properties')
-        const response = await request(app).get(`/schedules/properties/${properties.body[0].id}`).set("Authorization", `Bearer ${userLoginResponse.body.token}`)
+        const anotherProperty = propertiesRepository.create({
+            ...mockedProperty2,
+            address: anotherAddress,
+            category,
+        });
+        await propertiesRepository.save(anotherProperty);
 
-        expect(response.body).toHaveProperty("message")
-        expect(response.status).toBe(403)
-    })
+        const schedule = schedulesRepository.create({
+            ...mockedSchedule,
+            user,
+            properties: anotherProperty,
+        });
+        await schedulesRepository.save(schedule);
 
-})
+        const response = await request(app)
+            .post("/schedules")
+            .set("Authorization", userToken)
+            .send({
+                ...mockedSchedule,
+                userId: user.id,
+                propertyId: property.id,
+            });
+
+        const scheduleInDatabase = await schedulesRepository.find();
+
+        expect(scheduleInDatabase).toHaveLength(1);
+        expect(response.body).toHaveProperty("message");
+        expect(response.status).toBe(409);
+    });
+
+    it("POST /schedules - Should NOT be able to create a schedule with an invalid date", async () => {
+        const user = usersRepository.create(mockedUser);
+        await usersRepository.save(user);
+
+        const userLoginResponse = await request(app)
+            .post("/login")
+            .send(mockedUserLogin);
+        const userToken = `Bearer ${userLoginResponse.body.token}`;
+
+        const category = categoriesRepository.create(mockedCategory);
+        await categoriesRepository.save(category);
+
+        const address = addressesRepository.create({
+            ...mockedProperty.address,
+        });
+        await addressesRepository.save(address);
+
+        const property = propertiesRepository.create({
+            ...mockedProperty,
+            address,
+            category,
+        });
+        await propertiesRepository.save(property);
+
+        const response = await request(app)
+            .post("/schedules")
+            .set("Authorization", userToken)
+            .send({
+                ...mockedScheduleInvalidDate,
+                userId: user.id,
+                propertyId: property.id,
+            });
+
+        const scheduleInDatabase = await schedulesRepository.find();
+
+        expect(scheduleInDatabase).toHaveLength(0);
+        expect(response.body).toHaveProperty("message");
+        expect(response.status).toBe(400);
+    });
+
+    it("POST /schedules - Should NOT be able to create a schedule with an invalid hour < 8", async () => {
+        const user = usersRepository.create(mockedUser);
+        await usersRepository.save(user);
+
+        const userLoginResponse = await request(app)
+            .post("/login")
+            .send(mockedUserLogin);
+        const userToken = `Bearer ${userLoginResponse.body.token}`;
+
+        const category = categoriesRepository.create(mockedCategory);
+        await categoriesRepository.save(category);
+
+        const address = addressesRepository.create({
+            ...mockedProperty.address,
+        });
+        await addressesRepository.save(address);
+
+        const property = propertiesRepository.create({
+            ...mockedProperty,
+            address,
+            category,
+        });
+        await propertiesRepository.save(property);
+
+        const response = await request(app)
+            .post("/schedules")
+            .set("Authorization", userToken)
+            .send({
+                ...mockedScheduleInvalidHourLess8,
+                userId: user.id,
+                propertyId: property.id,
+            });
+
+        const scheduleInDatabase = await schedulesRepository.find();
+
+        expect(scheduleInDatabase).toHaveLength(0);
+        expect(response.body).toHaveProperty("message");
+        expect(response.status).toBe(400);
+    });
+
+    it("POST /schedules - Should NOT be able to create a schedule with an invalid hour > 18", async () => {
+        const user = usersRepository.create(mockedUser);
+        await usersRepository.save(user);
+
+        const userLoginResponse = await request(app)
+            .post("/login")
+            .send(mockedUserLogin);
+        const userToken = `Bearer ${userLoginResponse.body.token}`;
+
+        const category = categoriesRepository.create(mockedCategory);
+        await categoriesRepository.save(category);
+
+        const address = addressesRepository.create({
+            ...mockedProperty.address,
+        });
+        await addressesRepository.save(address);
+
+        const property = propertiesRepository.create({
+            ...mockedProperty,
+            address,
+            category,
+        });
+        await propertiesRepository.save(property);
+
+        const response = await request(app)
+            .post("/schedules")
+            .set("Authorization", userToken)
+            .send({
+                ...mockedScheduleInvalidHourMore18,
+                userId: user.id,
+                propertyId: property.id,
+            });
+
+        const scheduleInDatabase = await schedulesRepository.find();
+
+        expect(scheduleInDatabase).toHaveLength(0);
+        expect(response.body).toHaveProperty("message");
+        expect(response.status).toBe(400);
+    });
+
+    it("POST /schedules - Should NOT be able to create a schedule with an invalid property id", async () => {
+        const user = usersRepository.create(mockedUser);
+        await usersRepository.save(user);
+
+        const userLoginResponse = await request(app)
+            .post("/login")
+            .send(mockedUserLogin);
+        const userToken = `Bearer ${userLoginResponse.body.token}`;
+
+        const category = categoriesRepository.create(mockedCategory);
+        await categoriesRepository.save(category);
+
+        const response = await request(app)
+            .post("/schedules")
+            .set("Authorization", userToken)
+            .send({
+                ...mockedSchedule,
+                userId: user.id,
+                propertyId: mockedInvalidId,
+            });
+
+        const scheduleInDatabase = await schedulesRepository.find();
+
+        expect(scheduleInDatabase).toHaveLength(0);
+        expect(response.body).toHaveProperty("message");
+        expect(response.status).toBe(404);
+    });
+
+    it("POST /schedules - Should NOT be able to create a schedule without authentication", async () => {
+        const user = usersRepository.create(mockedUser);
+        await usersRepository.save(user);
+
+        const category = categoriesRepository.create(mockedCategory);
+        await categoriesRepository.save(category);
+
+        const address = addressesRepository.create({
+            ...mockedProperty.address,
+        });
+        await addressesRepository.save(address);
+
+        const property = propertiesRepository.create({
+            ...mockedProperty,
+            address,
+            category,
+        });
+        await propertiesRepository.save(property);
+
+        const response = await request(app)
+            .post("/schedules")
+            .send({
+                ...mockedSchedule,
+                userId: user.id,
+                propertyId: property.id,
+            });
+
+        const scheduleInDatabase = await schedulesRepository.find();
+
+        expect(scheduleInDatabase).toHaveLength(0);
+        expect(response.body).toHaveProperty("message");
+        expect(response.status).toBe(401);
+    });
+
+    it("GET /schedules/properties/:id - Should be able to list the schedules of a property", async () => {
+        const admin = usersRepository.create(mockedAdmin);
+        await usersRepository.save(admin);
+
+        const adminLoginResponse = await request(app)
+            .post("/login")
+            .send(mockedAdminLogin);
+        const adminToken = `Bearer ${adminLoginResponse.body.token}`;
+
+        const category = categoriesRepository.create(mockedCategory);
+        await categoriesRepository.save(category);
+
+        const address = addressesRepository.create({
+            ...mockedProperty.address,
+        });
+        await addressesRepository.save(address);
+
+        const property = propertiesRepository.create({
+            ...mockedProperty,
+            address,
+            category,
+        });
+        await propertiesRepository.save(property);
+
+        const schedule = schedulesRepository.create({
+            ...mockedSchedule,
+            user: admin,
+            properties: property,
+        });
+        await schedulesRepository.save(schedule);
+
+        const response = await request(app)
+            .get(`/schedules/properties/${property.id}`)
+            .set("Authorization", adminToken);
+
+        const scheduleInDatabase = await schedulesRepository.find();
+
+        expect(scheduleInDatabase[0]).toHaveProperty("id");
+        expect(scheduleInDatabase[0]).toHaveProperty("date");
+        expect(scheduleInDatabase[0]).toHaveProperty("hour");
+        expect(scheduleInDatabase).toHaveLength(1);
+
+        expect(response.body).toHaveProperty("schedules");
+        expect(response.body.schedules[0]).toHaveProperty("id");
+        expect(response.body.schedules[0]).toHaveProperty("user");
+        expect(response.body.schedules).toHaveLength(1);
+        expect(response.status).toBe(200);
+    });
+
+    it("GET /schedules/properties/:id - Should NOT be able to list the schedules of a property with invalid id", async () => {
+        const admin = usersRepository.create(mockedAdmin);
+        await usersRepository.save(admin);
+
+        const adminLoginResponse = await request(app)
+            .post("/login")
+            .send(mockedAdminLogin);
+        const adminToken = `Bearer ${adminLoginResponse.body.token}`;
+
+        const response = await request(app)
+            .get(`/schedules/properties/${mockedInvalidId}`)
+            .set("Authorization", adminToken);
+
+        expect(response.body).toHaveProperty("message");
+        expect(response.status).toBe(404);
+    });
+
+    it("GET /schedules/properties/:id - Should NOT be able to list the schedules of a property without authentication", async () => {
+        const category = categoriesRepository.create(mockedCategory);
+        await categoriesRepository.save(category);
+
+        const address = addressesRepository.create({
+            ...mockedProperty.address,
+        });
+        await addressesRepository.save(address);
+
+        const property = propertiesRepository.create({
+            ...mockedProperty,
+            address,
+            category,
+        });
+        await propertiesRepository.save(property);
+
+        const response = await request(app).get(
+            `/schedules/properties/${property.id}`
+        );
+
+        expect(response.body).toHaveProperty("message");
+        expect(response.status).toBe(401);
+    });
+
+    it("GET /schedules/properties/:id - Should NOT be able to list the schedules of a property that the user doesn't own", async () => {
+        const user = usersRepository.create(mockedUser);
+        await usersRepository.save(user);
+
+        const userLoginResponse = await request(app)
+            .post("/login")
+            .send(mockedUserLogin);
+        const userToken = `Bearer ${userLoginResponse.body.token}`;
+
+        const userThatOwnsProperty = usersRepository.create({
+            ...mockedUser,
+            email: "anotheremail@mail.com.br",
+        });
+        await usersRepository.save(userThatOwnsProperty);
+
+        const category = categoriesRepository.create(mockedCategory);
+        await categoriesRepository.save(category);
+
+        const address = addressesRepository.create({
+            ...mockedProperty.address,
+        });
+        await addressesRepository.save(address);
+
+        const property = propertiesRepository.create({
+            ...mockedProperty,
+            address,
+            category,
+        });
+        await propertiesRepository.save(property);
+
+        const schedule = schedulesRepository.create({
+            ...mockedSchedule,
+            user: userThatOwnsProperty,
+            properties: property,
+        });
+        await schedulesRepository.save(schedule);
+
+        const response = await request(app)
+            .get(`/schedules/properties/${property.id}`)
+            .set("Authorization", userToken);
+
+        expect(response.body).toHaveProperty("message");
+        expect(response.status).toBe(403);
+    });
+});
