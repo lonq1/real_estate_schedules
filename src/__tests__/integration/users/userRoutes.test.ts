@@ -1,237 +1,347 @@
 import { DataSource } from "typeorm";
 import AppDataSource from "../../../data-source";
-import request from "supertest"
+import request from "supertest";
 import app from "../../../app";
-import {mockedAdmin, mockedAdminLogin, mockedUser, mockedUserLogin} from "../../mocks"
-
+import {
+    mockedAdmin,
+    mockedAdminLogin,
+    mockedInvalidId,
+    mockedUpdateUser,
+    mockedUser,
+    mockedUserLogin,
+} from "../../mocks";
+import { User } from "../../../entities/users";
+import { getRounds } from "bcryptjs";
 
 describe("/users", () => {
-    let connection: DataSource
+    let connection: DataSource;
+    const usersRepository = AppDataSource.getRepository(User);
+    beforeAll(async () => {
+        await AppDataSource.initialize()
+            .then((res) => {
+                connection = res;
+            })
+            .catch((err) => {
+                console.error("Error during Data Source initialization", err);
+            });
+    });
 
-    beforeAll(async() => {
-        await AppDataSource.initialize().then((res) => {
-            connection = res
-        }).catch((err) => {
-            console.error("Error during Data Source initialization", err)
-        })
-    })
+    beforeEach(async () => {
+        await usersRepository.clear();
+    });
 
-    afterAll(async() => {
-        await connection.destroy()
-    })
+    afterAll(async () => {
+        await connection.destroy();
+    });
 
-    test("POST /users -  Must be able to create a user",async () => {
-        const response = await request(app).post('/users').send(mockedUser)
+    it("POST /users - Should be able to create an user", async () => {
+        const response = await request(app).post("/users").send(mockedUser);
 
-        expect(response.body).toHaveProperty("id")
-        expect(response.body).toHaveProperty("name")
-        expect(response.body).toHaveProperty("email")
-        expect(response.body).toHaveProperty("isAdm")
-        expect(response.body).toHaveProperty("isActive")
-        expect(response.body).toHaveProperty("createdAt")
-        expect(response.body).toHaveProperty("updatedAt")
-        expect(response.body).not.toHaveProperty("password")
-        expect(response.body.name).toEqual("Joana")
-        expect(response.body.email).toEqual("joana@mail.com")
-        expect(response.body.isAdm).toEqual(false)
-        expect(response.body.isActive).toEqual(true)
-        expect(response.status).toBe(201)        
-    })
+        expect(response.body).toHaveProperty("id");
+        expect(response.body).toHaveProperty("name");
+        expect(response.body).toHaveProperty("email");
+        expect(response.body).toHaveProperty("isAdm");
+        expect(response.body).toHaveProperty("isActive");
+        expect(response.body).toHaveProperty("createdAt");
+        expect(response.body).toHaveProperty("updatedAt");
+        expect(response.body).not.toHaveProperty("password");
+        expect(response.body.name).toEqual("Joana");
+        expect(response.body.email).toEqual("joana@mail.com");
+        expect(response.body.isAdm).toEqual(false);
+        expect(response.body.isActive).toEqual(true);
+        expect(response.status).toBe(201);
+    });
 
-    test("POST /users -  should not be able to create a user that already exists",async () => {
-        const response = await request(app).post('/users').send(mockedUser)
+    it("POST /users - Should NOT be able to create an user that already exists", async () => {
+        const user = usersRepository.create(mockedUser);
+        await usersRepository.save(user);
 
-        expect(response.body).toHaveProperty("message")
-        expect(response.status).toBe(409)
-             
-    })
+        const response = await request(app).post("/users").send(mockedUser);
 
-    test("GET /users -  Must be able to list users",async () => {
-        await request(app).post('/users').send(mockedAdmin)
-        const adminLoginResponse = await request(app).post("/login").send(mockedAdminLogin);
-        const response = await request(app).get('/users').set("Authorization", `Bearer ${adminLoginResponse.body.token}`)
+        expect(response.body).toHaveProperty("message");
+        expect(response.status).toBe(409);
+    });
 
-        expect(response.body).toHaveLength(2)
-        expect(response.body[0]).not.toHaveProperty("password")
-     
-    })
+    it("GET /users - Should be able to list all users", async () => {
+        const admin = usersRepository.create(mockedAdmin);
+        await usersRepository.save(admin);
 
-    test("GET /users -  should not be able to list users without authentication",async () => {
-        const response = await request(app).get('/users')
+        const adminLoginResponse = await request(app)
+            .post("/login")
+            .send(mockedAdminLogin);
+        const adminToken = `Bearer ${adminLoginResponse.body.token}`;
 
-        expect(response.body).toHaveProperty("message")
-        expect(response.status).toBe(401)
-             
-    })
+        const response = await request(app)
+            .get("/users")
+            .set("Authorization", adminToken);
 
-    test("GET /users -  should not be able to list users not being admin",async () => {
-        const userLoginResponse = await request(app).post("/login").send(mockedUserLogin);
-        const response = await request(app).get('/users').set("Authorization", `Bearer ${userLoginResponse.body.token}`)
+        const userInDatabase = await usersRepository.findOneBy({
+            id: admin.id,
+        });
+        const isPasswordHashed = getRounds(userInDatabase.password);
 
-        expect(response.body).toHaveProperty("message")
-        expect(response.status).toBe(403)
-             
-    })
+        expect(response.body).toHaveLength(1);
+        expect(response.body[0]).not.toHaveProperty("password");
+        expect(isPasswordHashed).toBeTruthy();
+        expect(response.status).toBe(200);
+    });
 
-    test("DELETE /users/:id -  should not be able to delete user without authentication",async () => {
-        const adminLoginResponse = await request(app).post("/login").send(mockedAdminLogin);
-        const UserTobeDeleted = await request(app).get('/users').set("Authorization", `Bearer ${adminLoginResponse.body.token}`)
+    it("GET /users - Should NOT be able to list users without authentication", async () => {
+        const response = await request(app).get("/users");
 
-        const response = await request(app).delete(`/users/${UserTobeDeleted.body[0].id}`)
+        expect(response.body).toHaveProperty("message");
+        expect(response.status).toBe(401);
+    });
 
-        expect(response.body).toHaveProperty("message")
-        expect(response.status).toBe(401)
-             
-    })
+    it("GET /users - Should NOT be able to list users not being admin", async () => {
+        const user = usersRepository.create(mockedUser);
+        await usersRepository.save(user);
 
-    test("DELETE /users/:id -  should not be able to delete user not being admin",async () => {
-        const userLoginResponse = await request(app).post("/login").send(mockedUserLogin);
-        const adminLoginResponse = await request(app).post("/login").send(mockedAdminLogin);
-        const UserTobeDeleted = await request(app).get('/users').set("Authorization", `Bearer ${adminLoginResponse.body.token}`)
+        const userLoginResponse = await request(app)
+            .post("/login")
+            .send(mockedUserLogin);
+        const userToken = `Bearer ${userLoginResponse.body.token}`;
 
-        const response = await request(app).delete(`/users/${UserTobeDeleted.body[0].id}`).set("Authorization", `Bearer ${userLoginResponse.body.token}`)
+        const response = await request(app)
+            .get("/users")
+            .set("Authorization", userToken);
 
-        expect(response.body).toHaveProperty("message")
-        expect(response.status).toBe(403)
-             
-    })
+        expect(response.body).toHaveProperty("message");
+        expect(response.status).toBe(403);
+    });
 
-    test("DELETE /users/:id -  Must be able to soft delete user",async () => {
-        await request(app).post('/users').send(mockedAdmin)
+    it("DELETE /users/:id - Should be able to soft delete user", async () => {
+        const admin = usersRepository.create(mockedAdmin);
+        await usersRepository.save(admin);
 
-        const adminLoginResponse = await request(app).post("/login").send(mockedAdminLogin);
-        const UserTobeDeleted = await request(app).get('/users').set("Authorization", `Bearer ${adminLoginResponse.body.token}`)
+        const adminLoginResponse = await request(app)
+            .post("/login")
+            .send(mockedAdminLogin);
+        const adminToken = `Bearer ${adminLoginResponse.body.token}`;
 
-        const response = await request(app).delete(`/users/${UserTobeDeleted.body[0].id}`).set("Authorization", `Bearer ${adminLoginResponse.body.token}`)
-        const findUser = await request(app).get('/users').set("Authorization", `Bearer ${adminLoginResponse.body.token}`)
-        expect(response.status).toBe(204)
-        expect(findUser.body[0].isActive).toBe(false)
-     
-    })
+        const userToBeDeleted = usersRepository.create(mockedUser);
+        await usersRepository.save(userToBeDeleted);
 
-    test("DELETE /users/:id -  shouldn't be able to delete user with isActive = false",async () => {
-        await request(app).post('/users').send(mockedAdmin)
+        const response = await request(app)
+            .delete(`/users/${userToBeDeleted.id}`)
+            .set("Authorization", adminToken);
 
-        const adminLoginResponse = await request(app).post("/login").send(mockedAdminLogin);
-        const UserTobeDeleted = await request(app).get('/users').set("Authorization", `Bearer ${adminLoginResponse.body.token}`)
+        const userInDatabase = await usersRepository.findOneBy({
+            id: userToBeDeleted.id,
+        });
 
-        const response = await request(app).delete(`/users/${UserTobeDeleted.body[0].id}`).set("Authorization", `Bearer ${adminLoginResponse.body.token}`)
-        expect(response.status).toBe(400)
-        expect(response.body).toHaveProperty("message")
-     
-    })
+        expect(userInDatabase.isActive).toBe(false);
+        expect(response.status).toBe(204);
+    });
 
-    test("DELETE /users/:id -  should not be able to delete user with invalid id",async () => {
-        await request(app).post('/users').send(mockedAdmin)
+    it("DELETE /users/:id - Should NOT be able to delete user without authentication", async () => {
+        const user = usersRepository.create(mockedUser);
+        await usersRepository.save(user);
 
-        const adminLoginResponse = await request(app).post("/login").send(mockedAdminLogin);
-        
-        const response = await request(app).delete(`/users/13970660-5dbe-423a-9a9d-5c23b37943cf`).set("Authorization", `Bearer ${adminLoginResponse.body.token}`)
-        expect(response.status).toBe(404)
-        expect(response.body).toHaveProperty("message")
-     
-    })
+        const response = await request(app).delete(`/users/${user.id}`);
 
-    test("PATCH /users/:id -  should not be able to update user without authentication",async () => {
-        const adminLoginResponse = await request(app).post("/login").send(mockedAdminLogin);
-        const userTobeUpdate = await request(app).get('/users').set("Authorization", `Bearer ${adminLoginResponse.body.token}`)
-        const response = await request(app).patch(`/users/${userTobeUpdate.body[0].id}`)
+        expect(response.body).toHaveProperty("message");
+        expect(response.status).toBe(401);
+    });
 
-        expect(response.body).toHaveProperty("message")
-        expect(response.status).toBe(401)
-             
-    })
+    it("DELETE /users/:id - Should NOT be able to delete user not being admin", async () => {
+        const user = usersRepository.create(mockedUser);
+        await usersRepository.save(user);
 
-    test("PATCH /users/:id - should not be able to update user with invalid id",async () => {
-        const newValues = {name: "Joana Brito", email: "joanabrito@mail.com"}
+        const userLoginResponse = await request(app)
+            .post("/login")
+            .send(mockedUserLogin);
+        const userToken = `Bearer ${userLoginResponse.body.token}`;
 
-        const admingLoginResponse = await request(app).post("/login").send(mockedAdminLogin);
-        const token = `Bearer ${admingLoginResponse.body.token}`
-        
-        const userTobeUpdateRequest = await request(app).get("/users").set("Authorization", token)
-        const userTobeUpdateId = userTobeUpdateRequest.body[0].id
+        const userToBeDeleted = usersRepository.create(mockedAdmin);
+        await usersRepository.save(userToBeDeleted);
 
-        const response = await request(app).patch(`/users/13970660-5dbe-423a-9a9d-5c23b37943cf`).set("Authorization",token).send(newValues)
+        const response = await request(app)
+            .delete(`/users/${userToBeDeleted.id}`)
+            .set("Authorization", userToken);
 
-        expect(response.body).toHaveProperty("message")
-        expect(response.status).toBe(404)
-    })
+        expect(response.body).toHaveProperty("message");
+        expect(response.status).toBe(403);
+    });
 
-    test("PATCH /users/:id - should not be able to update isAdm field value",async () => {
-        const newValues = {isAdm: false}
+    it("DELETE /users/:id - Should NOT be able to delete user with isActive = false", async () => {
+        const admin = usersRepository.create(mockedAdmin);
+        await usersRepository.save(admin);
 
-        const admingLoginResponse = await request(app).post("/login").send(mockedAdminLogin);
-        const token = `Bearer ${admingLoginResponse.body.token}`
-        
-        const userTobeUpdateRequest = await request(app).get("/users").set("Authorization", token)
-        const userTobeUpdateId = userTobeUpdateRequest.body[0].id
+        const adminLoginResponse = await request(app)
+            .post("/login")
+            .send(mockedAdminLogin);
+        const adminToken = `Bearer ${adminLoginResponse.body.token}`;
 
-        const response = await request(app).patch(`/users/${userTobeUpdateId}`).set("Authorization",token).send(newValues)
+        const userToBeDeleted = usersRepository.create({
+            ...mockedUser,
+            isActive: false,
+        });
+        await usersRepository.save(userToBeDeleted);
 
-        expect(response.body).toHaveProperty("message")
-        expect(response.status).toBe(401)
-    })
+        const response = await request(app)
+            .delete(`/users/${userToBeDeleted.id}`)
+            .set("Authorization", adminToken);
 
-    test("PATCH /users/:id - should not be able to update isActive field value",async () => {
-        const newValues = {isActive: false}
+        expect(response.status).toBe(409);
+        expect(response.body).toHaveProperty("message");
+    });
 
-        const admingLoginResponse = await request(app).post("/login").send(mockedAdminLogin);
-        const token = `Bearer ${admingLoginResponse.body.token}`
-        
-        const userTobeUpdateRequest = await request(app).get("/users").set("Authorization", token)
-        const userTobeUpdateId = userTobeUpdateRequest.body[0].id
+    it("DELETE /users/:id - Should NOT be able to delete user with invalid id", async () => {
+        const admin = usersRepository.create(mockedAdmin);
+        await usersRepository.save(admin);
 
-        const response = await request(app).patch(`/users/${userTobeUpdateId}`).set("Authorization",token).send(newValues)
-        expect(response.body).toHaveProperty("message")
-        expect(response.status).toBe(401)
-    })
+        const adminLoginResponse = await request(app)
+            .post("/login")
+            .send(mockedAdminLogin);
+        const adminToken = `Bearer ${adminLoginResponse.body.token}`;
 
-    test("PATCH /users/:id - should not be able to update id field value",async () => {
-        const newValues = {id: false}
+        const response = await request(app)
+            .delete(`/users/${mockedInvalidId}`)
+            .set("Authorization", adminToken);
 
-        const admingLoginResponse = await request(app).post("/login").send(mockedAdminLogin);
-        const token = `Bearer ${admingLoginResponse.body.token}`
-        
-        const userTobeUpdateRequest = await request(app).get("/users").set("Authorization", token)
-        const userTobeUpdateId = userTobeUpdateRequest.body[0].id
+        expect(response.body).toHaveProperty("message");
+        expect(response.status).toBe(404);
+    });
 
-        const response = await request(app).patch(`/users/${userTobeUpdateId}`).set("Authorization",token).send(newValues)
-        expect(response.body).toHaveProperty("message")
-        expect(response.status).toBe(401)
-    })
+    it("PATCH /users/:id - Should be able to update user", async () => {
+        const admin = usersRepository.create(mockedAdmin);
+        await usersRepository.save(admin);
 
-    test("PATCH /users/:id - should not be able to update another user without adm permission",async () => {
-        const newValues = {isActive: false}
+        const adminLoginResponse = await request(app)
+            .post("/login")
+            .send(mockedAdminLogin);
+        const adminToken = `Bearer ${adminLoginResponse.body.token}`;
 
-        const userLoginResponse = await request(app).post("/login").send(mockedUser);
-        const admingLoginResponse = await request(app).post("/login").send(mockedAdminLogin);
-        const userToken = `Bearer ${userLoginResponse.body.token}`
-        const adminToken = `Bearer ${admingLoginResponse.body.token}`
-        
-        const userTobeUpdateRequest = await request(app).get("/users").set("Authorization", adminToken)
-        const userTobeUpdateId = userTobeUpdateRequest.body[1].id
+        const response = await request(app)
+            .patch(`/users/${admin.id}`)
+            .set("Authorization", adminToken)
+            .send(mockedUpdateUser);
 
-        const response = await request(app).patch(`/users/${userTobeUpdateId}`).set("Authorization",userToken).send(newValues)
+        const userInDatabase = await usersRepository.findOneBy({
+            id: admin.id,
+        });
 
-        expect(response.body).toHaveProperty("message")
-        expect(response.status).toBe(401)
-    })
+        expect(userInDatabase.name).toBe(mockedUpdateUser.name);
+        expect(userInDatabase.email).toBe(mockedUpdateUser.email);
+        expect(response.status).toBe(200);
+    });
 
-    test("PATCH /users/:id -  should be able to update user",async () => {
-        const newValues = {name: "Joana Brito", email: "joanabrito@mail.com"}
+    it("PATCH /users/:id - Should NOT be able to update user without authentication", async () => {
+        const user = usersRepository.create(mockedUser);
+        await usersRepository.save(user);
 
-        const admingLoginResponse = await request(app).post("/login").send(mockedAdminLogin);
-        const token = `Bearer ${admingLoginResponse.body.token}`
-        
-        const userTobeUpdateRequest = await request(app).get("/users").set("Authorization", token)
-        const userTobeUpdateId = userTobeUpdateRequest.body[0].id
+        const response = await request(app).patch(`/users/${user.id}`);
 
-        const response = await request(app).patch(`/users/${userTobeUpdateId}`).set("Authorization",token).send(newValues)
+        expect(response.body).toHaveProperty("message");
+        expect(response.status).toBe(401);
+    });
 
-        const userUpdated = await request(app).get("/users").set("Authorization", token)
+    it("PATCH /users/:id - Should NOT be able to update user with invalid id", async () => {
+        const admin = usersRepository.create(mockedAdmin);
+        await usersRepository.save(admin);
 
-        expect(response.status).toBe(200)
-        expect(userUpdated.body[0].name).toEqual("Joana Brito")
-        expect(userUpdated.body[0]).not.toHaveProperty("password")
-    })    
-})
+        const adminLoginResponse = await request(app)
+            .post("/login")
+            .send(mockedAdminLogin);
+        const adminToken = `Bearer ${adminLoginResponse.body.token}`;
+
+        const response = await request(app)
+            .patch(`/users/${mockedInvalidId}`)
+            .set("Authorization", adminToken)
+            .send(mockedUpdateUser);
+
+        expect(response.body).toHaveProperty("message");
+        expect(response.status).toBe(404);
+    });
+
+    it("PATCH /users/:id - Should NOT be able to update isAdm field value", async () => {
+        const admin = usersRepository.create(mockedAdmin);
+        await usersRepository.save(admin);
+
+        const adminLoginResponse = await request(app)
+            .post("/login")
+            .send(mockedAdminLogin);
+        const adminToken = `Bearer ${adminLoginResponse.body.token}`;
+
+        const user = usersRepository.create(mockedUser);
+        await usersRepository.save(user);
+
+        const response = await request(app)
+            .patch(`/users/${user.id}`)
+            .set("Authorization", adminToken)
+            .send({ ...mockedUpdateUser, isAdm: true });
+
+        const userInDatabase = await usersRepository.findOneBy({ id: user.id });
+
+        expect(userInDatabase.isAdm).toBeFalsy();
+        expect(response.status).toBe(200);
+    });
+
+    it("PATCH /users/:id - Should NOT be able to update isActive field value", async () => {
+        const admin = usersRepository.create(mockedAdmin);
+        await usersRepository.save(admin);
+
+        const adminLoginResponse = await request(app)
+            .post("/login")
+            .send(mockedAdminLogin);
+        const adminToken = `Bearer ${adminLoginResponse.body.token}`;
+
+        const user = usersRepository.create(mockedUser);
+        await usersRepository.save(user);
+
+        const response = await request(app)
+            .patch(`/users/${user.id}`)
+            .set("Authorization", adminToken)
+            .send({ ...mockedUpdateUser, isActive: false });
+
+        const userInDatabase = await usersRepository.findOneBy({ id: user.id });
+
+        expect(userInDatabase.isActive).toBeTruthy();
+        expect(response.status).toBe(200);
+    });
+
+    it("PATCH /users/:id - Should NOT be able to update id field value", async () => {
+        const admin = usersRepository.create(mockedAdmin);
+        await usersRepository.save(admin);
+
+        const adminLoginResponse = await request(app)
+            .post("/login")
+            .send(mockedAdminLogin);
+        const adminToken = `Bearer ${adminLoginResponse.body.token}`;
+
+        const user = usersRepository.create(mockedUser);
+        await usersRepository.save(user);
+
+        const response = await request(app)
+            .patch(`/users/${user.id}`)
+            .set("Authorization", adminToken)
+            .send({ ...mockedUpdateUser, id: mockedInvalidId });
+
+        const userInDatabase = await usersRepository.findOneBy({ id: user.id });
+
+        expect(userInDatabase.id).not.toBe(mockedInvalidId);
+        expect(response.status).toBe(200);
+    });
+
+    it("PATCH /users/:id - Should NOT be able to update another user without adm permission", async () => {
+        const user = usersRepository.create(mockedUser);
+        await usersRepository.save(user);
+
+        const userAdminResponse = await request(app)
+            .post("/login")
+            .send(mockedAdminLogin);
+        const userToken = `Bearer ${userAdminResponse.body.token}`;
+
+        const userToBeUpdated = usersRepository.create(mockedAdmin);
+        await usersRepository.save(userToBeUpdated);
+
+        const response = await request(app)
+            .patch(`/users/${userToBeUpdated.id}`)
+            .set("Authorization", userToken)
+            .send(mockedUpdateUser);
+
+        expect(response.body).toHaveProperty("message");
+        expect(response.status).toBe(401);
+    });
+});

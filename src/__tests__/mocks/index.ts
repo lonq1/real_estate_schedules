@@ -1,37 +1,42 @@
-import { IUserLogin,IUserRequest } from "../../interfaces/users";
+import { IUserLogin, IUserRequest, IUserUpdate } from "../../interfaces/users";
 import { IScheduleRequest } from "../../interfaces/schedules";
 import { IPropertyRequest } from "../../interfaces/properties";
 import { ICategoryRequest } from "../../interfaces/categories";
 
-export const mockedUser : IUserRequest = {
+const mockedUser: IUserRequest = {
     name: "Joana",
     email: "joana@mail.com",
     isAdm: false,
-    password: "123456"
-}
+    password: "123456",
+};
 
-export const mockedAdmin : IUserRequest = {
+const mockedAdmin: IUserRequest = {
     name: "Felipe",
     email: "felipe@mail.com",
     isAdm: true,
-    password: "123456"
-}
+    password: "123456",
+};
 
-export const mockedUserLogin : IUserLogin = {
+const mockedUserLogin: IUserLogin = {
     email: "joana@mail.com",
-    password: "123456"
-}
+    password: "123456",
+};
 
-export const mockedAdminLogin : IUserLogin = {
+const mockedAdminLogin: IUserLogin = {
     email: "felipe@mail.com",
-    password: "123456"
-}
+    password: "123456",
+};
 
-export const mockedCategory : ICategoryRequest = {
-    name: "Apartamento"
-}
+const mockedUpdateUser: IUserUpdate = {
+    name: "novo nome",
+    email: "novo@email.com",
+};
 
-export const mockedProperty : IPropertyRequest = {
+const mockedCategory: ICategoryRequest = {
+    name: "Apartamento",
+};
+
+const mockedProperty: IPropertyRequest = {
     size: 350,
     value: 10000000,
     address: {
@@ -39,12 +44,12 @@ export const mockedProperty : IPropertyRequest = {
         zipCode: "18150000",
         number: "67",
         city: "Piedade",
-        state: "SP"
+        state: "SP",
     },
-    categoryId: ""
-}
+    categoryId: "",
+};
 
-export const mockedProperty2 : IPropertyRequest = {
+const mockedProperty2: IPropertyRequest = {
     size: 350,
     value: 10000000,
     address: {
@@ -52,12 +57,12 @@ export const mockedProperty2 : IPropertyRequest = {
         zipCode: "18170000",
         number: "42",
         city: "Ibiúna",
-        state: "SP"
+        state: "SP",
     },
-    categoryId: ""
-}
+    categoryId: "",
+};
 
-export const mockedPropertyInvalidZipCode : IPropertyRequest = {
+const mockedPropertyInvalidZipCode: IPropertyRequest = {
     size: 350,
     value: 10000000,
     address: {
@@ -65,12 +70,12 @@ export const mockedPropertyInvalidZipCode : IPropertyRequest = {
         zipCode: "1815000033",
         number: "67",
         city: "Piedade",
-        state: "SP"
+        state: "SP",
     },
-    categoryId: ""
-}
+    categoryId: "",
+};
 
-export const mockedPropertyInvalidState : IPropertyRequest = {
+const mockedPropertyInvalidState: IPropertyRequest = {
     size: 350,
     value: 10000000,
     address: {
@@ -78,12 +83,12 @@ export const mockedPropertyInvalidState : IPropertyRequest = {
         zipCode: "18150000",
         number: "67",
         city: "Piedade",
-        state: "SPGO"
+        state: "SPGO",
     },
-    categoryId: ""
-}
+    categoryId: "",
+};
 
-export const mockedPropertyInvalidCategoryId : IPropertyRequest = {
+const mockedPropertyInvalidCategoryId: IPropertyRequest = {
     size: 350,
     value: 10000000,
     address: {
@@ -91,43 +96,69 @@ export const mockedPropertyInvalidCategoryId : IPropertyRequest = {
         zipCode: "18150000",
         number: "68",
         city: "Piedade",
-        state: "SP"
+        state: "SP",
     },
-    categoryId: "8f9ae6ce-e36c-4d9d-9bd7-b4c98cb4e4f4"
-}
+    categoryId: "8f9ae6ce-e36c-4d9d-9bd7-b4c98cb4e4f4",
+};
 
-export const mockedSchedule : IScheduleRequest = {
+const mockedSchedule: IScheduleRequest = {
     date: "2022/08/12",
     hour: "10:30",
     propertyId: "",
-    userId: ""
-}
+    userId: "",
+};
 
-export const mockedScheduleInvalidPropertyId : IScheduleRequest = {
+const mockedScheduleInvalidPropertyId: IScheduleRequest = {
     date: "2022/08/12",
     hour: "10:30",
     propertyId: "b855d86b-d4c9-41cd-ab98-d7fa734c6ce4",
-    userId: ""
-}
+    userId: "",
+};
 
-
-export const mockedScheduleInvalidDate : IScheduleRequest = {
+const mockedScheduleInvalidDate: IScheduleRequest = {
     date: "2022/08/20",
     hour: "10:30",
     propertyId: "",
-    userId: ""
-}
+    userId: "",
+};
 
-export const mockedScheduleInvalidHourLess8 : IScheduleRequest = {
+const mockedScheduleInvalidHourLess8: IScheduleRequest = {
     date: "2022/08/17",
     hour: "5:30",
     propertyId: "",
-    userId: ""
-}
+    userId: "",
+};
 
-export const mockedScheduleInvalidHourMore18 : IScheduleRequest = {
+const mockedScheduleInvalidHourMore18: IScheduleRequest = {
     date: "2022/08/17",
     hour: "18:30",
     propertyId: "",
-    userId: ""
-}
+    userId: "",
+};
+
+const mockedInvalidId: string = "13970660-5dbe-423a-9a9d-5c23b37943cf";
+
+export {
+    ICategoryRequest,
+    IPropertyRequest,
+    IScheduleRequest,
+    IUserLogin,
+    IUserRequest,
+    mockedAdmin,
+    mockedAdminLogin,
+    mockedCategory,
+    mockedInvalidId,
+    mockedProperty,
+    mockedProperty2,
+    mockedPropertyInvalidCategoryId,
+    mockedPropertyInvalidState,
+    mockedPropertyInvalidZipCode,
+    mockedSchedule,
+    mockedScheduleInvalidDate,
+    mockedScheduleInvalidHourLess8,
+    mockedScheduleInvalidHourMore18,
+    mockedScheduleInvalidPropertyId,
+    mockedUser,
+    mockedUserLogin,
+    mockedUpdateUser,
+};
